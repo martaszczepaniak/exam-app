@@ -13,6 +13,21 @@
 
 char buffer[BUFFER_SIZE];
 
+struct Exam_question {
+  char number[2];
+  char question[100];
+  char possible_answers[100];
+  char correct_answer;
+};
+
+struct Exam {
+  struct Exam_question Q1;
+  struct Exam_question Q2;
+  struct Exam_question Q3;
+  char exam_json[500];
+};
+
+
 void start_server(int sock) {
   int one = 1;
   struct sockaddr_in svr_addr;
@@ -34,50 +49,71 @@ void start_server(int sock) {
   listen(sock, 5);
 }
 
+char* create_json_string(struct Exam Ex) {
+  char* json = malloc(500* sizeof(char));
+  sprintf(json, "{ \"question%s\": { \"number\": \"%s\", \"question\": \"%s\", \"possible_answers\": \"%s\", \"correct_answer\": \"%c\" } }", 
+    Ex.Q1.number, Ex.Q1.number, Ex.Q1.question, Ex.Q1.possible_answers, Ex.Q1.correct_answer);
+  return json;
+}
+
 void mainHandler(connection) {
+
+  struct Exam_question Question1;
+
+  strcpy( Question1.number, "1");
+  strcpy( Question1.question, "What color is a chalkboard?");
+  strcpy( Question1.possible_answers, "A - pink, B - green, C - yellow.");
+  Question1.correct_answer = 'B';
+
+  struct Exam Exam1;
+  Exam1.Q1 = Question1;
+  strcpy( Exam1.exam_json, create_json_string(Exam1));
+  printf("%s\n", Exam1.exam_json );
 	char response[BUFFER_SIZE];
 	char message[20];
 	char answer[5];
 	char result[BUFFER_SIZE];
-  	write(connection, "ELO", 3);
   
   // READ MESSAGE
-  	int received_msg_length = read(connection, buffer, BUFFER_SIZE);
+  int received_msg_length = read(connection, buffer, BUFFER_SIZE);
 
-  	while(received_msg_length > 0) {
-    	printf("buffer %s\n", buffer);
-    	printf("buffer length %d\n", received_msg_length);
+	while(received_msg_length > 0) {
+  	printf("buffer %s\n", buffer);
+  	printf("buffer length %d\n", received_msg_length);
 
-	    
-	    sprintf(message, "%s", buffer);
-	    
-	    // ASSIGN HANDLER
-	    if(strcmp(message, "question1") == 0) {
-	      	strcpy(response, "question1: How are you?");
-	      	printf("response1:%s\n", response);
-	    } else if(strcmp(message, "question2") == 0) {
-	    	strcpy(response, "question2: What are you doing?");
-	      	printf("response2:%s\n", response);
-	    } else if(message[0] == 'a') {
-	    	strcpy(answer, message);
-	    	memmove (answer, answer + 1, strlen(answer));
-	    	printf("msg:%s\n", answer);
-	    	strcpy(response, answer);
-	      	printf("response3:%s\n", answer);
-	    } else {
-	    	strcpy(response, message);
-	    	printf("response4:%s\n", message);
-	    }
-	    // RESPOND
-	    memset(buffer, 0, strlen(buffer));
-	    memset(message, 0, strlen(message));
-	    write(connection, response, strlen(response));
-	    // CHECK FOR NEW MESSAGES
-	    received_msg_length = read(connection, buffer, BUFFER_SIZE);
+    
+    sprintf(message, "%s", buffer);
+    
+    // ASSIGN HANDLER
+    if(strcmp(message, "question") == 0) {
+      	strcpy(response, Exam1.exam_json);
+      	printf("response1:%s\n", response);
+    } else if(message[0] == 'a') {
+    	strcpy(answer, message);
+    	memmove (answer, answer + 1, strlen(answer));
+    	printf("msg:%s\n", answer);
+    	strcpy(response, answer);
+      strcpy(result, answer);
+      printf("RESULT:%s\n", result);
+      if(result[0] == 'B') {
+        printf("correct!");
+      }
+      printf("response3:%s\n", answer);
+    } else {
+    	strcpy(response, message);
+    	printf("response4:%s\n", message);
+    }
+    // RESPOND
+    memset(buffer, 0, strlen(buffer));
+    memset(message, 0, strlen(message));
+    write(connection, response, strlen(response));
+    // CHECK FOR NEW MESSAGES
+    received_msg_length = read(connection, buffer, BUFFER_SIZE);
   }
 }
 
 int main() {
+
   int client_socket_connection;
   struct sockaddr_in cli_addr;
   socklen_t sin_len = sizeof(cli_addr);

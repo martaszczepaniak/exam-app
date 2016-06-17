@@ -1,22 +1,31 @@
 const net = require('net');
+const readline = require('readline');
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
 let client = new net.Socket();
 
 function onConnectionSuccess() {
 	console.log('Successfully connected to server!');
-	setTimeout(() => sendMessage('question1'), 500);
-	setTimeout(() => sendMessage('question2'), 1000);
-	setTimeout(() => sendMessage('elo'), 1500);
+	setTimeout(() => sendMessage('question'), 500);
 }
 
 function onReceiveData(data) {
-	switch(data.toString().substring(0,9)) {
-	    case 'question1':
+	let  message = JSON.parse(data);
+	let questionContent = message.question1.question;
+	let questionNumber = message.question1.number;
+	switch(questionNumber) {
+	    case '1':
 	    	console.log(`Received message ${data.toString()}\n`);
-	        client.write('aok');
-	        break;
-	    case 'question2':
-	    	console.log(`Received message ${data.toString()}\n`);
-	        client.write('anothing');
+	    	console.log(questionContent);
+	        rl.question( questionContent, (answer) => {
+	        	console.log(answer);
+	        	//client.write('aB');
+  				rl.close();
+			});
 	        break;
 	    default:
 	        console.log(`Received message ${data.toString()}\n`);
