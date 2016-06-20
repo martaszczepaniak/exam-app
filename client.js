@@ -62,6 +62,28 @@ function promptAddQuestion() {
 		});
 }
 
+function promptNextQuestionChoice() {
+	const choiceList = [
+		{
+			type: 'list', 
+			name: 'choice' , 
+			message: 'Add next question?', 
+			choices: ['Yes.', 'No. Save Exam.']
+		}
+	]
+
+	inquirer
+		.prompt(choiceList)
+		.then(({choice}) => {
+			if(choice === choiceList[0].choices[0]) {
+				console.log('dupa')
+				promptAddQuestion() 	
+			} else {
+				console.log(choice);	
+			}
+		})
+}
+
 function promptQuestion(question) {
 	const choiceList = [
 		{
@@ -71,7 +93,7 @@ function promptQuestion(question) {
 			choices: ['A', 'B', 'C']
 		}
 	]
-	console.log(question);
+	console.log(`\n\n${question}`);
 	inquirer.prompt(choiceList).then(
 		({choice}) => sendMessage('answer', choice))
 }
@@ -124,6 +146,15 @@ function onReceiveData(jsonData) {
 				}
 			}
 			break;		
+		}
+		case 'addExam': {
+			if(status === 'ok') {
+				promptNextQuestionChoice();
+				console.log('next')
+			} else {
+				console.log('It was 5th question. Exam was added.');	
+			} 
+			break;
 		}
 	}
 	delete(messages[uuid]);

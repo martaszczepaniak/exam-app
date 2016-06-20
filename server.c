@@ -32,6 +32,7 @@ struct User {
 struct User_exams {
 	struct Exam exam;
 	struct User user;
+	int score;
 };
 
 struct User users[10];
@@ -153,8 +154,6 @@ void mainHandler(connection) {
 			}
 			case '3': {
 				struct Question question;
-				//char question_content[33];
-				//char correct_answer;
 
 				memcpy(question.content, &buffer[9], 100);
 				question.content[100] = '\0';
@@ -162,14 +161,17 @@ void mainHandler(connection) {
 				question.correct_answer = buffer[109];
 				int question_index;
 				for(question_index = 0; question_index < 5; question_index++) {
-					if(user_exams.exam.questions[question_index] == NULL) {
+					if(user_exams.exam.questions[question_index].content[0] == '\0') {
 						strcpy(user_exams.exam.questions[question_index].content, question.content);
 						user_exams.exam.questions[question_index].correct_answer = question.correct_answer;
+						if(question_index < 4) {
+							sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\"}", uuid);
+						} else {
+							sprintf(response, "{\"uuid\": \"%s\", \"status\": \"not ok\"}", uuid);
+						}
 						break;
 					}
 				}
-				printf("Cos tam\n%s  %c\n", question.content, question.correct_answer);
-				strcpy(response, "received addExam");
 				break;
 			}
 			default:
