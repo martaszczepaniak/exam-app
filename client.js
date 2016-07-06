@@ -39,30 +39,49 @@ function promptTeachersChoice() {
 			type: 'list', 
 			name: 'choice' , 
 			message: 'Pick action:', 
-			choices: ['Add exam.', 'See students results.']
+			choices: ['Add new exam.', 'See existing exams.']
 		}
 	]
 
 	inquirer
 		.prompt(choiceList)
-		.then((answer) => (promptAddQuestion()));
+		.then(({choice}) => {
+			if(choice === choiceList[0].choices[0]) {
+				promptAddExam();	
+			} else {
+				getExams();
+			}
+		});
 }
 
-function promptAddQuestion() {
+function promptAddExam() {
+	inquirer
+		.prompt([{type: 'input', name: 'name', message: 'Exam name:'}])
+		.then(answer => {
+			addExam(answer)
+		})
+}
+
+function promptAddQuestion(id) {
 	const questionList = [
 		{type: 'input', name: 'question', message: 'Input content of question and possible answers:'},
-		{type: 'input', name: 'correctAnswer', message: 'Input correct answer(e.g. A):'}
+		{
+			type: 'list', 
+			name: 'correctAnswer', 
+			message: 'Correct answer:', 
+			choices: ['A', 'B', 'C']
+		}
 	]
 
 	inquirer
 		.prompt(questionList)
 		.then(answer => {
 			console.log(answer);
-			addExam(answer);
+			addQuestion(answer, id);
 		});
 }
 
-function promptNextQuestionChoice() {
+function promptNextQuestionChoice(id) {
 	const choiceList = [
 		{
 			type: 'list', 
@@ -76,10 +95,9 @@ function promptNextQuestionChoice() {
 		.prompt(choiceList)
 		.then(({choice}) => {
 			if(choice === choiceList[0].choices[0]) {
-				console.log('dupa')
-				promptAddQuestion() 	
+				promptAddQuestion(id);	
 			} else {
-				console.log(choice);	
+				promptTeachersChoice();
 			}
 		})
 }
@@ -147,14 +165,36 @@ function onReceiveData(jsonData) {
 			}
 			break;		
 		}
-		case 'addExam': {
+		case 'addQuestion': {
 			if(status === 'ok') {
-				promptNextQuestionChoice();
+				const {id} = data;
+				promptNextQuestionChoice(id);
 				console.log('next')
 			} else {
 				console.log('It was 5th question. Exam was added.');	
 			} 
 			break;
+		}
+		case 'addExam': {
+			if(status === 'ok') {
+				const {id} = data;
+				promptAddQuestion(id);
+			}
+		}
+		case 'getExams': {
+			if(status === 'ok') {
+				let {exam_names} = data;
+				exam_names = exam_names.map(name => name.trim()).filter(name => name);
+				const choiceList = [
+					{
+						type: 'list', 
+						name: 'exam' , 
+						message: 'Check scores for exam:', 
+						choices: exam_names,
+					}
+				]
+				inquirer.prompt(choiceList);
+			}
 		}
 	}
 	delete(messages[uuid]);
@@ -164,7 +204,9 @@ const actions = {
 	logIn: 0,
 	getExam: 1,
 	answer: 2,
-	addExam: 3,
+	addQuestion: 3,
+	addExam: 4,
+	getExams: 5,
 }
 
 function sendMessage(action, payload = '') {	
@@ -185,9 +227,18 @@ function getExam() {
 	sendMessage('getExam');
 }
 
-function addExam({question, correctAnswer}) {
-	const payload = `${_.padEnd(question, 100)}${correctAnswer}`;
+function addExam({name}) {
+	const payload = _.padEnd(name, 16);
 	sendMessage('addExam', payload);
+}
+
+function addQuestion({question, correctAnswer}, id) {
+	const payload = `${id}${_.padEnd(question, 100)}${correctAnswer}`;
+	sendMessage('addQuestion', payload);
+}
+
+function getExams() {
+	sendMessage('getExams');
 }
 
 client.on('data', onReceiveData);

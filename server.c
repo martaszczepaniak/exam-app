@@ -20,23 +20,28 @@ struct Exam {
 	int current_question;
 	struct Question questions[5];
 	char answers[5];
+	char name[16];
 };
 
 struct User {
 	char type[10];
 	char login[9];
 	char password[9];
-	struct Exam exam;
 };
 
-struct User_exams {
+struct UserExams {
 	struct Exam exam;
 	struct User user;
 	int score;
 };
 
 struct User users[10];
-struct User_exams user_exams;
+
+struct Exam exams[10];
+int exam_count = 0;
+
+struct UserExams user_exams[10];
+int user_exams_count = 0;
 
 unsigned char buffer[BUFFER_SIZE];
 
@@ -68,21 +73,11 @@ char* create_response_with_question(char* response, char* uuid, char* question) 
 	return response;
 }
 
-struct Exam create_exam() {
-	struct Question question1 = {"What color is a chalkboard? A - pink, B - green, C - yellow.", 'B'};
-	struct Question question2 = {"What color is a dog? A - pink, B - green, C - yellow.", 'A'};
-	struct Exam exam = {0};
-	exam.questions[0] = question1;
-	exam.questions[1] = question2;
-	return exam;
-}
-
 void mainHandler(connection) {
 	//INITIALIZING BUFFER
 	unsigned char response[BUFFER_SIZE];
 
 	int current_user = 0;
-	struct Exam current_exam;
 
 	// READ MESSAGE
 	int received_msg_length = read(connection, buffer, BUFFER_SIZE);
@@ -112,66 +107,101 @@ void mainHandler(connection) {
 							uuid, users[user_index].type);
 						break;
 					} else {
-						//printf("\n\n%s\n", users[1].login);
 						sprintf(response, "{\"uuid\": \"%s\", \"status\": \"Incorrect credentials.\"}", uuid);
 					}
 				}
 				break; 
 			}
-			case '1': {
-				if(current_user != 0) {
-					users[current_user].exam = user_exams.exam;
-					current_exam = users[current_user].exam;
+			// case '1': {
+			// 	if(current_user != 0) {
+			// 		users[current_user].exam = user_exams.exam;
+			// 		current_exam = users[current_user].exam;
 
-					create_response_with_question(response, uuid, 
-						current_exam.questions[current_exam.current_question].content);
-				} else {
-					sprintf(response, "{\"uuid\": \"%s\", \"status\": \"Unauthorized access.\"}", uuid);
-				}
-				break;
-			}
-			case '2': {
-				if(current_user != 0) {
-					char answer = buffer[9];
-					current_exam.answers[current_exam.current_question] = answer;
-					printf("%d\n",  current_exam.current_question);
-					current_exam.current_question++;
+			// 		create_response_with_question(response, uuid, 
+			// 			current_exam.questions[current_exam.current_question].content);
+			// 	} else {
+			// 		sprintf(response, "{\"uuid\": \"%s\", \"status\": \"Unauthorized access.\"}", uuid);
+			// 	}
+			// 	break;
+			// }
+			// case '2': {
+			// 	if(current_user != 0) {
+			// 		char answer = buffer[9];
+			// 		current_exam.answers[current_exam.current_question] = answer;
+			// 		printf("%d\n",  current_exam.current_question);
+			// 		current_exam.current_question++;
 
-					if (current_exam.current_question < (sizeof(current_exam.questions)/sizeof(current_exam.questions[0]))) {
-						create_response_with_question(response, uuid, 
-						current_exam.questions[current_exam.current_question].content);
-					} else {
-						int score = 0;
-						int question_index;
-						for(question_index = 0; question_index < 5; question_index++) {
-							if(current_exam.questions[question_index].correct_answer == current_exam.answers[question_index])
-								score++;
-						}
-						sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"score\": \"%d\"}", uuid, score);
-					}
-				}
-				break;
-			}
+			// 		if (current_exam.current_question < (sizeof(current_exam.questions)/sizeof(current_exam.questions[0]))) {
+			// 			create_response_with_question(response, uuid, 
+			// 			current_exam.questions[current_exam.current_question].content);
+			// 		} else {
+			// 			int score = 0;
+			// 			int question_index;
+			// 			for(question_index = 0; question_index < 5; question_index++) {
+			// 				if(current_exam.questions[question_index].correct_answer == current_exam.answers[question_index])
+			// 					score++;
+			// 			}
+			// 			sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"score\": \"%d\"}", uuid, score);
+			// 		}
+			// 	}
+			// 	break;
+			// }
 			case '3': {
 				struct Question question;
+				int exam_id = buffer[9] - '0';
 
-				memcpy(question.content, &buffer[9], 100);
+				memcpy(question.content, &buffer[10], 100);
 				question.content[100] = '\0';
 
-				question.correct_answer = buffer[109];
+				question.correct_answer = buffer[110];
+
 				int question_index;
 				for(question_index = 0; question_index < 5; question_index++) {
-					if(user_exams.exam.questions[question_index].content[0] == '\0') {
-						strcpy(user_exams.exam.questions[question_index].content, question.content);
-						user_exams.exam.questions[question_index].correct_answer = question.correct_answer;
+					if(exams[exam_id].questions[question_index].content[0] == '\0') {
 						if(question_index < 4) {
-							sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\"}", uuid);
+							exams[exam_id].questions[question_index] = question;
+							sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"id\": \"%d\"}", uuid, exam_id);
 						} else {
 							sprintf(response, "{\"uuid\": \"%s\", \"status\": \"not ok\"}", uuid);
 						}
 						break;
 					}
 				}
+				break;
+			}
+			case '4': {
+				struct Exam new_exam;
+				memcpy(new_exam.name, &buffer[9], 16);
+				new_exam.name[16] = '\0';
+				new_exam.current_question = 0;
+				exams[exam_count] = new_exam;
+				struct UserExams teacher_user_exams = {new_exam, users[current_user]};
+				user_exams[user_exams_count] = teacher_user_exams;
+
+				sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"id\": \"%d\"}", uuid, exam_count);
+				exam_count++;
+				user_exams_count++;
+				break;
+			}
+			case '5': {
+				struct Exam teacher_exams[10];
+				int teacher_exams_count = 0;
+
+				int i;
+				for(i = 0; i < 10; i++) {
+					if(strcmp(user_exams[i].user.login, users[current_user].login) == 0) {
+						teacher_exams[teacher_exams_count] = user_exams[i].exam;
+						teacher_exams_count++;
+					}
+				}
+
+				char exam_names[800];
+
+				sprintf(exam_names, "[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"]", 
+					teacher_exams[0].name, teacher_exams[1].name, teacher_exams[2].name, teacher_exams[3].name, teacher_exams[4].name,
+					teacher_exams[5].name, teacher_exams[6].name, teacher_exams[7].name, teacher_exams[8].name, teacher_exams[9].name);
+
+				sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"exam_names\": %s}", uuid, exam_names);
 				break;
 			}
 			default:
