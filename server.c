@@ -8,10 +8,14 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <err.h>
+#include <sqlite3.h>
 
 #define BUFFER_SIZE 1000
+#define MAXCLIENTS 20
 
-struct Question {
+int childCount = 0;
+
+/*struct Question {
 	char content[200];
 	char correct_answer;
 };
@@ -41,9 +45,23 @@ struct Exam exams[10];
 int exam_count = 0;
 
 struct UserExams user_exams[10];
-int user_exams_count = 0;
+int user_exams_count = 0;*/
+
+char current_user_login[50];
+char current_user_pass[50];
+char current_user_type[20];
+char exam_id[5];
+char question_content[200];
+char correct_answer;
 
 unsigned char buffer[BUFFER_SIZE];
+
+
+void sig_child(int s)
+{
+	while ( waitpid(-1, 0, WNOHANG) > 0 )
+	childCount --;
+}
 
 void start_server(int sock) {
 	int one = 1;
@@ -73,6 +91,31 @@ char* create_response_with_question(char* response, char* uuid, char* question) 
 	return response;
 }
 
+static int callback0(void *NotUsed, int argc, char **argv, char **azColName){
+   sprintf(current_user_login, "%s", argv[0]);
+   printf("%s\n", argv[0]);
+   sprintf(current_user_pass, "%s", argv[1]);
+   printf("%s\n", argv[1]);
+   sprintf(current_user_type, "%s", argv[2]);
+   return 0;
+}
+
+static int callback4_1(void *NotUsed, int argc, char **argv, char **azColName){
+   	return 0;
+}
+
+static int callback4_2(void *NotUsed, int argc, char **argv, char **azColName){
+   	sprintf(exam_id, "%s", argv[0]);
+  	printf("%s\n", argv[0]);
+   	return 0;
+}
+
+static int callback1(void *NotUsed, int argc, char **argv, char **azColName) {
+	sprintf(question_content, "%s", argv[0]);
+	printf("%s\n", argv[0]);
+   	return 0;
+}
+
 void mainHandler(connection) {
 	//INITIALIZING BUFFER
 	unsigned char response[BUFFER_SIZE];
@@ -82,6 +125,19 @@ void mainHandler(connection) {
 	// READ MESSAGE
 	int received_msg_length = read(connection, buffer, BUFFER_SIZE);
 
+	sqlite3 *db;
+	char *zErrMsg = 0;
+	int db_connection;
+
+	/* Open database */
+	db_connection = sqlite3_open("exam-app.db", &db);
+
+	if(db_connection){
+	fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+	}else{
+		fprintf(stderr, "Opened database successfully\n");
+	}
+
 	while(received_msg_length > 0) {
 		char uuid[9];
 		memcpy(uuid, &buffer[1], 8);
@@ -90,6 +146,7 @@ void mainHandler(connection) {
 		// ASSIGN HANDLER
 		switch(buffer[0]) {
 			case '0': {
+
 				char login[9];
 				char password[9];
 
@@ -98,19 +155,98 @@ void mainHandler(connection) {
 
 				memcpy(password, &buffer[17], 8);
 				password[8] = '\0';
-				int user_index;
-				for(user_index = 0; user_index < 10; user_index++) {
-					if(strcmp(login, users[user_index].login) == 0 && 
-						strcmp(password, users[user_index].password) == 0) {
-						current_user = user_index;
+
+				char *sql;
+				char s[100];
+				//sql = "SELECT * FROM Users WHERE login = 100;";
+				sprintf(s, "SELECT * FROM Users WHERE login = %s;", login);
+				sql = s;
+				db_connection = sqlite3_exec(db, sql, callback0, 0, &zErrMsg);
+			   	if( db_connection != SQLITE_OK ){
+			   		fprintf(stderr, "SQL error: %s\n", zErrMsg);
+			      	sqlite3_free(zErrMsg);
+			   	}else{
+			      	fprintf(stdout, "Table created successfully\n");
+			      	if(strcmp(login, current_user_login) == 0 && 
+						strcmp(password, current_user_pass) == 0) {
 						sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"user_type\": \"%s\"}", 
-							uuid, users[user_index].type);
+							uuid, current_user_type);
 						break;
 					} else {
+						printf("%s\n", current_user_login);
+						printf("%s\n", current_user_pass);
 						sprintf(response, "{\"uuid\": \"%s\", \"status\": \"Incorrect credentials.\"}", uuid);
 					}
-				}
+			   	}
 				break; 
+			}
+			case '1': {
+				int current_question = 1;
+				char *sql;
+				char s[100];
+				//sql = "SELECT * FROM Users WHERE login = 100;";
+				sprintf(s, "SELECT content FROM Questions WHERE exam_id = 5 AND id = %d;", current_question);
+				sql = s;
+				db_connection = sqlite3_exec(db, sql, callback1, 0, &zErrMsg);
+				if(db_connection != SQLITE_OK) {
+			   		fprintf(stderr, "SQL error: %s\n", zErrMsg);
+			      	sqlite3_free(zErrMsg);
+			   	} else {
+			   		sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"question\": \"%s\"}", uuid, question_content);
+			   		current_question++;
+			   	}
+				break;
+			}
+			case '3': {
+				int exam_id = buffer[9] - '0';
+
+				memcpy(question_content, &buffer[10], 100);
+				question_content[100] = '\0';
+
+				correct_answer = buffer[110];
+
+				char *sql;
+				char s[100];
+				sprintf(s, "INSERT INTO Questions(content, correct_answer, exam_id) VALUES (\'%s\', \'%c\', \'%d\' );", question_content, correct_answer, exam_id);
+				sql = s;
+				db_connection = sqlite3_exec(db, sql, callback0, 0, &zErrMsg);
+				if( db_connection != SQLITE_OK ){
+			   		fprintf(stderr, "SQL error: %s\n", zErrMsg);
+			      	sqlite3_free(zErrMsg);
+			   	} else {
+			      	fprintf(stdout, "Table created successfully\n");
+			      	sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"id\": \"%d\"}", uuid, exam_id);
+			   	}
+				break;
+			}
+			case '4': {
+				char exam_name[20];
+				exam_name[16] = '\0';
+				memcpy(exam_name, &buffer[9], 16);
+				printf("%s\n", exam_name);
+				char *sql;
+				char *sql1;
+				char sql_cmd1[100];
+				char sql_cmd2[100];
+				sprintf(sql_cmd1, "INSERT INTO Exams(name) VALUES (\'%s\');", exam_name);
+				sql = sql_cmd1;
+				db_connection = sqlite3_exec(db, sql, callback4_1, 0, &zErrMsg);
+			   	if( db_connection != SQLITE_OK ) {
+			   		fprintf(stderr, "SQL error: %s\n", zErrMsg);
+			      	sqlite3_free(zErrMsg);
+			   	} else {
+			      	fprintf(stdout, "Table created successfully\n");
+			      	sprintf(sql_cmd2, "SELECT id FROM Exams WHERE name = \"%s\";", exam_name);
+					sql1 = sql_cmd2;
+			      	db_connection = sqlite3_exec(db, sql1, callback4_2, 0, &zErrMsg);
+				   	if( db_connection != SQLITE_OK ) {
+				   		fprintf(stderr, "SQL error: %s\n", zErrMsg);
+				      	sqlite3_free(zErrMsg);
+				   	} else {
+			      		sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"id\": \"%s\"}", uuid, exam_id);
+			      	}
+			   	}
+				break;
 			}
 			// case '1': {
 			// 	if(current_user != 0) {
@@ -146,7 +282,7 @@ void mainHandler(connection) {
 			// 	}
 			// 	break;
 			// }
-			case '3': {
+			/*case '3': {
 				struct Question question;
 				int exam_id = buffer[9] - '0';
 
@@ -203,9 +339,9 @@ void mainHandler(connection) {
 
 				sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"exam_names\": %s}", uuid, exam_names);
 				break;
-			}
-			default:
-				strcpy(response, "Incorrect action number");
+			}*/
+			//default:
+				//strcpy(response, "Incorrect action number");
 		}
 
 		// RESPOND
@@ -221,21 +357,6 @@ void mainHandler(connection) {
 }
 
 int main() {
-	struct User user0;
-
-	strcpy(user0.type, "student");
-	strcpy(user0.login, "login123");
-	strcpy(user0.password, "password");
-
-	struct User user1;
-
-	strcpy(user1.type, "teacher");
-	strcpy(user1.login, "teacher1");
-	strcpy(user1.password, "password");
-
-	users[1] = user0;
-	users[2] = user1;
-
 	int client_socket_connection;
 	struct sockaddr_in cli_addr;
 	socklen_t sin_len = sizeof(cli_addr);
@@ -244,11 +365,24 @@ int main() {
 	start_server(sock);
 
 	while (1) {
+		while (childCount >= MAXCLIENTS)
+			sleep(1);
 		client_socket_connection = accept(sock, (struct sockaddr *) &cli_addr, &sin_len);
 		printf("got connection\n");
 
-		mainHandler(client_socket_connection);
-
-		close(client_socket_connection);
+		if (client_socket_connection > 0) {
+			int pid;
+			if ((pid=fork()) == 0) {
+				close(sock);
+				mainHandler(client_socket_connection);
+				childCount --;
+			}
+			else if (pid > 0) {
+				childCount ++;
+				close(client_socket_connection);
+			}
+			else
+				perror("fork");
+		}
   	}
 }

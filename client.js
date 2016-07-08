@@ -181,7 +181,7 @@ function onReceiveData(jsonData) {
 				promptAddQuestion(id);
 			}
 		}
-		case 'getExams': {
+		/*case 'getExams': {
 			if(status === 'ok') {
 				let {exam_names} = data;
 				exam_names = exam_names.map(name => name.trim()).filter(name => name);
@@ -195,7 +195,7 @@ function onReceiveData(jsonData) {
 				]
 				inquirer.prompt(choiceList);
 			}
-		}
+		}*/
 	}
 	delete(messages[uuid]);
 }
@@ -206,7 +206,7 @@ const actions = {
 	answer: 2,
 	addQuestion: 3,
 	addExam: 4,
-	getExams: 5,
+	// getExams: 5,
 }
 
 function sendMessage(action, payload = '') {	
