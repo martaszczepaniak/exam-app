@@ -15,14 +15,15 @@
 
 int childCount = 0;
 
-/*struct Question {
+struct Question {
+	int id;
 	char content[200];
-	char correct_answer;
+	char* correct_answer;
+	char exam_id[2];
 };
 
 struct Exam {
-	int current_question;
-	struct Question questions[5];
+	char id[2];
 	char answers[5];
 	char name[16];
 };
@@ -34,25 +35,27 @@ struct User {
 };
 
 struct UserExams {
-	struct Exam exam;
-	struct User user;
-	int score;
+	char exam_id[2];
+	char user_login[9];
+	char score[5];
 };
 
 struct User users[10];
 
 struct Exam exams[10];
-int exam_count = 0;
+//int exam_count = 0;
+struct Exam user_exam_names[10];
+int user_exams_index = 0;
 
 struct UserExams user_exams[10];
-int user_exams_count = 0;*/
 
-char current_user_login[50];
-char current_user_pass[50];
-char current_user_type[20];
-char exam_id[5];
-char question_content[200];
-char correct_answer;
+
+struct Question questions[10];
+struct Question question_answers[10];
+int question_index = 0;
+//int user_exams_count = 0;
+int user_exam_questions = 0;
+
 
 unsigned char buffer[BUFFER_SIZE];
 
@@ -91,13 +94,15 @@ char* create_response_with_question(char* response, char* uuid, char* question) 
 	return response;
 }
 
-static int callback0(void *NotUsed, int argc, char **argv, char **azColName){
-   sprintf(current_user_login, "%s", argv[0]);
-   printf("%s\n", argv[0]);
-   sprintf(current_user_pass, "%s", argv[1]);
-   printf("%s\n", argv[1]);
-   sprintf(current_user_type, "%s", argv[2]);
-   return 0;
+static int callback0(void *NotUsed, int argc, char **argv, char **azColName) {
+	struct User user;
+   	sprintf(user.login, "%s", argv[0]);
+   	printf("%s\n", argv[0]);
+   	sprintf(user.password, "%s", argv[1]);
+   	printf("%s\n", argv[1]);
+   	sprintf(user.type, "%s", argv[2]);
+   	users[0] = user;
+   	return 0;
 }
 
 static int callback4_1(void *NotUsed, int argc, char **argv, char **azColName){
@@ -105,14 +110,59 @@ static int callback4_1(void *NotUsed, int argc, char **argv, char **azColName){
 }
 
 static int callback4_2(void *NotUsed, int argc, char **argv, char **azColName){
-   	sprintf(exam_id, "%s", argv[0]);
+	struct Exam exam;
+   	sprintf(exam.id, "%s", argv[0]);
   	printf("%s\n", argv[0]);
+  	exams[0] = exam;
    	return 0;
 }
 
 static int callback1(void *NotUsed, int argc, char **argv, char **azColName) {
-	sprintf(question_content, "%s", argv[0]);
+	struct UserExams user_exam;
+	struct Question question;
+	sprintf(question.content, "%s", argv[1]);
+	sprintf(question.exam_id, "%s", argv[2]);
+	question.id = atoi(argv[3]);
+	sprintf(user_exam.exam_id, "%s", argv[2]);
+	sprintf(user_exam.user_login, "%s", argv[0]);
 	printf("%s\n", argv[0]);
+	user_exams[0] = user_exam;
+	questions[0] = question;
+   	return 0;
+}
+
+static int callback6(void *NotUsed, int argc, char **argv, char **azColName){
+	struct Exam exam;
+   	sprintf(exam.id, "%s", argv[1]);
+   	sprintf(exam.name, "%s", argv[2]);
+   	user_exam_names[user_exams_index] = exam;
+   	user_exams_index++;
+  	printf("%s\n", argv[1]);
+  	printf("%s\n", argv[1]);
+   	return 0;
+}
+
+static int callback2_1(void *NotUsed, int argc, char **argv, char **azColName) {
+	struct Question question;
+
+	questions[question_index].correct_answer = argv[0];
+	printf("atoi: %s\n", argv[0]);
+	printf("qq: %c\n", *questions[question_index].correct_answer)	;
+   	return 0;
+}
+
+static int callback2_2(void *NotUsed, int argc, char **argv, char **azColName){
+	user_exam_questions = atoi(argv[0]);
+	printf("%d\n", atoi(argv[0]));
+   	return 0;
+}
+
+static int callback2_3(void *NotUsed, int argc, char **argv, char **azColName){
+	struct Question question;
+	question.id = atoi(argv[0]);
+	sprintf(question.content, "%s", argv[1]);
+	sprintf(question.exam_id, "%s", argv[2]);
+	questions[question_index] = question;
    	return 0;
 }
 
@@ -121,6 +171,7 @@ void mainHandler(connection) {
 	unsigned char response[BUFFER_SIZE];
 
 	int current_user = 0;
+	
 
 	// READ MESSAGE
 	int received_msg_length = read(connection, buffer, BUFFER_SIZE);
@@ -158,7 +209,6 @@ void mainHandler(connection) {
 
 				char *sql;
 				char s[100];
-				//sql = "SELECT * FROM Users WHERE login = 100;";
 				sprintf(s, "SELECT * FROM Users WHERE login = %s;", login);
 				sql = s;
 				db_connection = sqlite3_exec(db, sql, callback0, 0, &zErrMsg);
@@ -167,39 +217,82 @@ void mainHandler(connection) {
 			      	sqlite3_free(zErrMsg);
 			   	}else{
 			      	fprintf(stdout, "Table created successfully\n");
-			      	if(strcmp(login, current_user_login) == 0 && 
-						strcmp(password, current_user_pass) == 0) {
+					if(strcmp(login, users[0].login) == 0 && 
+						strcmp(password, users[0].password) == 0) {
+						//current_user = user_index;
 						sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"user_type\": \"%s\"}", 
-							uuid, current_user_type);
+							uuid, users[0].type);
 						break;
 					} else {
-						printf("%s\n", current_user_login);
-						printf("%s\n", current_user_pass);
 						sprintf(response, "{\"uuid\": \"%s\", \"status\": \"Incorrect credentials.\"}", uuid);
 					}
 			   	}
 				break; 
 			}
 			case '1': {
-				int current_question = 1;
+				printf("case1");
 				char *sql;
 				char s[100];
-				//sql = "SELECT * FROM Users WHERE login = 100;";
-				sprintf(s, "SELECT content FROM Questions WHERE exam_id = 5 AND id = %d;", current_question);
+				sprintf(s, "SELECT login, content, exam_id, min(id) FROM Questions, Users WHERE exam_id = 5 AND login = \"%s\";", users[0].login);
 				sql = s;
 				db_connection = sqlite3_exec(db, sql, callback1, 0, &zErrMsg);
 				if(db_connection != SQLITE_OK) {
 			   		fprintf(stderr, "SQL error: %s\n", zErrMsg);
 			      	sqlite3_free(zErrMsg);
 			   	} else {
-			   		sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"question\": \"%s\"}", uuid, question_content);
-			   		current_question++;
+			   		
+				   	sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"question\": \"%s\"}", uuid, questions[question_index].content);
 			   	}
+				break;
+			}
+			case '2': {
+				printf("qi: %d\n", question_index);
+				printf("uq: %d\n", user_exam_questions);
+				char answer = buffer[9];
+				int score;
+				char *sql;
+				char s[100];
+				sprintf(s, "SELECT correct_answer FROM Questions WHERE id = \"%d\";", questions[question_index].id);
+				sql = s;
+				db_connection = sqlite3_exec(db, sql, callback2_1, 0, &zErrMsg);
+			   	if (db_connection != SQLITE_OK ) {
+			   		fprintf(stderr, "SQL error: %s\n", zErrMsg);
+			      	sqlite3_free(zErrMsg);
+			   	} else {
+			   		if(*questions[question_index].correct_answer == answer) {
+			   			score++;
+			   		}
+			   		sprintf(s, "SELECT count(*) FROM Questions, Users WHERE exam_id = \"%s\" AND login = \"%s\";", 
+			   			questions[question_index].exam_id, users[0].login);
+			   		sql = s;
+					db_connection = sqlite3_exec(db, sql, callback2_2, 0, &zErrMsg);
+					printf("%d", question_index);
+					printf("%d", user_exam_questions);
+			   		if(question_index < user_exam_questions - 1) {
+			   			sprintf(s, "SELECT id, content, exam_id FROM Questions WHERE id = \"%d\";", questions[question_index].id + 1);
+						sql = s;
+						question_index++;
+						db_connection = sqlite3_exec(db, sql, callback2_3, 0, &zErrMsg);
+					   	if (db_connection != SQLITE_OK ) {
+					   		fprintf(stderr, "SQL error: %s\n", zErrMsg);
+					      	sqlite3_free(zErrMsg);
+					   	} else {
+			   				sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"question\": \"%s\"}", 
+			   				uuid, questions[question_index].content);
+			   				printf("%s", questions[question_index].content);
+			   			}
+			   		} else {
+						sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"score\": \"%d\"}", 
+			   				uuid, score);
+			   		}
+			   	}
+
 				break;
 			}
 			case '3': {
 				int exam_id = buffer[9] - '0';
-
+				char question_content[200];
+				char correct_answer;
 				memcpy(question_content, &buffer[10], 100);
 				question_content[100] = '\0';
 
@@ -243,7 +336,7 @@ void mainHandler(connection) {
 				   		fprintf(stderr, "SQL error: %s\n", zErrMsg);
 				      	sqlite3_free(zErrMsg);
 				   	} else {
-			      		sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"id\": \"%s\"}", uuid, exam_id);
+			      		sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"id\": \"%s\"}", uuid, exams[0].id);
 			      	}
 			   	}
 				break;
@@ -342,6 +435,25 @@ void mainHandler(connection) {
 			}*/
 			//default:
 				//strcpy(response, "Incorrect action number");
+			case '6': {
+				char *sql;
+				char s[100];
+				sprintf(s, "SELECT user_login, exam_id, name FROM User_Exams, Exams WHERE user_login = \"%s\" AND User_exams.exam_id = Exams.id AND score IS NULL OR score ='';", users[0].login);
+				sql = s;
+				db_connection = sqlite3_exec(db, sql, callback6, 0, &zErrMsg);
+				if(db_connection != SQLITE_OK) {
+			   		fprintf(stderr, "SQL error: %s\n", zErrMsg);
+			      	sqlite3_free(zErrMsg);
+			   	} else {
+			   		char exam_names[800];
+
+					sprintf(exam_names, "[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\"]", user_exam_names[0].name, 
+						user_exam_names[1].name ? user_exam_names[1].name : "0", user_exam_names[2].name ? user_exam_names[2].name : "0",
+						user_exam_names[3].name ? user_exam_names[3].name : "0", user_exam_names[4].name ? user_exam_names[4].name : "0");
+			   		sprintf(response, "{\"uuid\": \"%s\", \"status\": \"ok\", \"exam_names\": [ \"lalala\", \"kakaka\"], \"id\": 5 }", uuid);
+			   	}
+				break;
+			}
 		}
 
 		// RESPOND

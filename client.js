@@ -30,7 +30,7 @@ function promptStudentsChoice() {
 
 	inquirer
 		.prompt(choiceList)
-		.then((answer) => (getExam()));
+		.then((answer) => (seeAvailableExams()));
 }
 
 function promptTeachersChoice() {
@@ -116,6 +116,27 @@ function promptQuestion(question) {
 		({choice}) => sendMessage('answer', choice))
 }
 
+function promptExams(exam) {
+	let exam_names = [];
+	for (let i = 0; i < exam.length; i++) {
+		if (exam[i] != "") {
+			exam_names[i] = exam[i];
+		}
+	}
+	console.log(exam_names);
+	choices = [`${exam[0]}`,]
+	const choiceList = [
+		{
+			type: 'list', 
+			name: 'choice' , 
+			message: 'Available exams:', 
+			choices: exam_names,
+		}
+	]
+	inquirer.prompt(choiceList).then(
+		({choice})=> getExam());
+}
+
 function onConnectionSuccess() {
 	// console.log('Successfully connected to server!\n');
 	promptLogIn();
@@ -196,6 +217,12 @@ function onReceiveData(jsonData) {
 				inquirer.prompt(choiceList);
 			}
 		}*/
+		case 'seeAvailableExams': {
+			if(status === 'ok') {
+				const{exam_names} = data;
+				promptExams(exam_names);
+			}
+		}
 	}
 	delete(messages[uuid]);
 }
@@ -207,6 +234,7 @@ const actions = {
 	addQuestion: 3,
 	addExam: 4,
 	// getExams: 5,
+	seeAvailableExams: 6,
 }
 
 function sendMessage(action, payload = '') {	
@@ -239,6 +267,10 @@ function addQuestion({question, correctAnswer}, id) {
 
 function getExams() {
 	sendMessage('getExams');
+}
+
+function seeAvailableExams() {
+	sendMessage('seeAvailableExams');
 }
 
 client.on('data', onReceiveData);
