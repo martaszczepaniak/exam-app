@@ -15,8 +15,11 @@ function promptStudentMenu() {
       type: 'list',
       name: 'choice' ,
       message: 'Pick action:',
-      choices: ['Start exam.', 'See exam results.']
-    }
+      choices: [
+        {name: 'Start exam.', value: 'startExam'}, 
+        {name: 'See exam results.', value: 'examResults'},
+      ],
+    },
   ];
 
   return inquirer.prompt(choiceList);
@@ -28,14 +31,38 @@ function promptTeacherMenu() {
 			type: 'list',
 			name: 'choice',
 			message: 'Pick action:',
-			choices: ['Add new exam.', 'See existing exams.']
+			choices: [
+        {name: 'Add new exam.', value: 'addExam'},
+        {name: 'See existing exams.', value: 'seeExams'},
+      ]
 		}
 	]
 
   return inquirer.prompt(choiceList);
 }
+
+function promptAddExam() {
+  return inquirer
+    .prompt([{type: 'input', name: 'name', message: 'Exam name:'}])
+}
+
+function promptExams() {
+  let exam_names = ['lala', 'kaka'];
+  const choiceList = [
+    {
+      type: 'list', 
+      name: 'choice' , 
+      message: 'Available exams:', 
+      choices: exam_names,
+    }
+  ]
+  return inquirer.prompt(choiceList);
+}
+
 module.exports = {
   promptLogIn,
   promptStudentMenu,
   promptTeacherMenu,
+  promptAddExam,
+  promptExams,
 };
