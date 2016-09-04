@@ -1,8 +1,10 @@
 const co = require('co');
 const inquirer = require('inquirer');
 const { teacherMenu } = require('./teacherMenu');
+const { studentMenu } = require('./studentMenu');
+const { adminMenu } = require('./adminMenu');
 
-const sendLogIn = () => ({ userType: 'teacher' });
+const sendLogIn = () => ({ userType: 'admin' });
 
 const loginPrompt = () =>
   inquirer.prompt([
@@ -16,6 +18,8 @@ const mainMenu = () =>
     const { userType } = yield sendLogIn(credentials);
     yield {
       teacher: teacherMenu,
+      student: studentMenu,
+      admin: adminMenu,
     }[userType]();
   }).catch((err) => {
     console.log(err, 'Incorrect credentials! Try again!');

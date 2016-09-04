@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <err.h>
 #include <sqlite3.h>
+#include <json/json.h>
 
 #define BUFFER_SIZE 1000
 #define MAXCLIENTS 20
@@ -196,7 +197,7 @@ void mainHandler(connection) {
 
 		// ASSIGN HANDLER
 		switch(buffer[0]) {
-			case 'logIn': {
+			case '0': {
 
 				break;
 			}

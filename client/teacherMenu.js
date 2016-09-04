@@ -9,7 +9,8 @@ const teacherMenuPrompt = () =>
       message: 'Pick action:',
       choices: [
         { name: 'Add new exam.', value: 'addExam' },
-        { name: 'See existing exams.', value: 'seeExams' },
+        { name: 'Share an exam.', value: 'shareExam' },
+        { name: 'View students results.', value: 'seeResults' },
       ],
     },
   ]);
@@ -54,12 +55,48 @@ const addExamPrompt = () =>
     return { examName, questions };
   });
 
+const existingExamsPrompt = () =>
+  inquirer.prompt([
+      {
+        type: 'list', 
+        name: 'choice' , 
+        message: 'Pick an exam to share:', 
+        choices: ['exam1', 'exam2', 'exam3'],
+      }
+  ]);
+
+const shareExamsPrompt = () =>
+  co(function* () {
+    const pickedExam = yield existingExamsPrompt();
+
+    const pickedGroup = yield inquirer.prompt([
+      {
+        type: 'list', 
+        name: 'choice' , 
+        message: 'Pick a group to share:', 
+        choices: ['group1', 'group2', 'group3'],
+      }
+    ]);
+
+    return { pickedExam, pickedGroup };
+  });
+
+const resultsPrompt = () =>
+  co(function* () {
+    const studentResults = [1,2,3];
+    const pickedExam = yield existingExamsPrompt;
+    console.log(studentResults);
+    return { pickedExam };
+  });
+
 const teacherMenu = () =>
   co(function* () {
     while (true) {
       const { choice } = yield teacherMenuPrompt();
       yield {
         addExam: addExamPrompt,
+        shareExam: shareExamsPrompt,
+        seeResults: resultsPrompt,
       }[choice]();
     }
   }).catch((err) => {
