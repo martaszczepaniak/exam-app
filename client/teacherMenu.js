@@ -1,5 +1,6 @@
 const co = require('co');
 const inquirer = require('inquirer');
+const { addExam, getExams, getGroups, shareExam } = require('./gateway');
 
 const teacherMenuPrompt = () =>
   inquirer.prompt([
@@ -25,7 +26,7 @@ const addQuestionPrompt = () =>
       },
       {
         type: 'list',
-        name: 'correctAnwer',
+        name: 'correctAnswer',
         message: 'Correct answer:',
         choices: [
           { name: 'A', value: 'A' },
@@ -51,41 +52,39 @@ const addExamPrompt = () =>
       ]);
       addNextQuestion = nextQuestion;
     }
-
-    return { examName, questions };
+    yield addExam({name: examName, questions})
   });
 
 const existingExamsPrompt = () =>
-  inquirer.prompt([
-      {
-        type: 'list', 
-        name: 'choice' , 
-        message: 'Pick an exam to share:', 
-        choices: ['exam1', 'exam2', 'exam3'],
-      }
-  ]);
+  co(function* () {
+    const { exams } = yield getExams();
+
+    return inquirer.prompt([
+        {
+          type: 'list', 
+          name: 'examId' , 
+          message: 'Pick an exam to share:', 
+          choices: exams.map((exam) => ({ name: exam.name, value: exam.id })),
+        }
+    ]);
+  });
 
 const shareExamsPrompt = () =>
   co(function* () {
-    const pickedExam = yield existingExamsPrompt();
-
-    const pickedGroup = yield inquirer.prompt([
-      {
-        type: 'list', 
-        name: 'choice' , 
-        message: 'Pick a group to share:', 
-        choices: ['group1', 'group2', 'group3'],
-      }
+    const { examId } = yield existingExamsPrompt();
+    const { groups } = yield getGroups();
+    const { groupId, duration } = yield inquirer.prompt([
+      { type: 'list', name: 'groupId', message: 'Pick a group to share to:', 
+        choices: groups.map(({ name, id }) => ({ name, value: id })),
+      },
+      { type: 'input', name: 'duration', message: 'Exam duration in minutes:' }
     ]);
-
-    return { pickedExam, pickedGroup };
+    yield shareExam(examId, groupId, duration);
   });
 
 const resultsPrompt = () =>
   co(function* () {
-    const studentResults = [1,2,3];
     const pickedExam = yield existingExamsPrompt;
-    console.log(studentResults);
     return { pickedExam };
   });
 

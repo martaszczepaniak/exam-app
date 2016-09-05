@@ -1,5 +1,7 @@
 const co = require('co');
 const inquirer = require('inquirer');
+const { getExam, getOpenUserExams, getQuestions } = require('./gateway');
+
 
 const studentMenuPrompt = () =>
   inquirer.prompt([
@@ -15,32 +17,39 @@ const studentMenuPrompt = () =>
   ]);
 
 const promptQuestion = () =>
-	co(function* () {
-		console.log("dupa");
-    const answer = yield inquirer.prompt([
-      {
-				type: 'list', 
-				name: 'choice' , 
-				message: 'Your answer is:', 
-				choices: ['A', 'B', 'C'],
-			}
-    ]);
-		return { answer };
-  });
-
-const promptQuestions = () =>
-	co(function* () {
-		const answers = [];
-		const questions = ['a', 'b', 'c'];
-		for (question in questions) {
-			answers[question] = yield promptQuestion();
+	inquirer.prompt([
+    {
+			type: 'list', 
+			name: 'choice' , 
+			message: 'Your answer is:', 
+			choices: ['A', 'B', 'C'],
 		}
-		return { answers };
-  });
+  ]);
 
+const yourExamsPrompt = () =>
+  co(function* () {
+    const { exams } = yield getOpenUserExams();
+    const { examId } = yield inquirer.prompt([
+      {
+        type: 'list',
+        name: 'examId',
+        message: 'Your exams:',
+        choices: exams.map((exam) => ({ name: exam.name, value: exam.id })),
+      }
+    ]);
+    const { questions } = yield getQuestions(examId);
+    const answers = {};
+    for (let question in questions) {
+      console.log(`Question ${question}: ${questions[question].content}`)
+      answers[questions[question].id] = yield promptQuestion();
+    }
+    return { answers };
+  })
+	
 const seeExamResults = () =>
 	co(function* () {
-		console.log("examResults...");
+		const pickedExam = yield yourExamsPrompt();
+		return { pickedExam };
 	});
 
 const studentMenu = () =>
@@ -48,7 +57,8 @@ const studentMenu = () =>
     while (true) {
       const { choice } = yield studentMenuPrompt();
       yield {
-        startExam: promptQuestions,
+        startExam: yourExamsPrompt,
+        seeResults: seeExamResults,
       }[choice]();
     }
   }).catch((err) => {

@@ -3,8 +3,7 @@ const inquirer = require('inquirer');
 const { teacherMenu } = require('./teacherMenu');
 const { studentMenu } = require('./studentMenu');
 const { adminMenu } = require('./adminMenu');
-
-const sendLogIn = () => ({ userType: 'admin' });
+const { sendLogIn } = require('./gateway');
 
 const loginPrompt = () =>
   inquirer.prompt([

@@ -1,5 +1,6 @@
 const co = require('co');
 const inquirer = require('inquirer');
+const { createGroup, getGroups, getStudents, addStudentsToGroup } = require('./gateway');
 
 const adminMenuPrompt = () =>
   inquirer.prompt([
@@ -15,25 +16,35 @@ const adminMenuPrompt = () =>
   ]);
 
 const createGroupPrompt = () =>
-  inquirer.prompt([
-    {
-      type: 'input',
-      name: 'group',
-      message: 'Input group name:',
-    }
-  ]);
+  co(function* () {
+    const newGroup = yield inquirer.prompt([
+      {
+        type: 'input',
+        name: 'groupName',
+        message: 'Input group name:',
+      }
+    ]);
+    yield createGroup(newGroup);
+  });
 
 const addStudentsPrompt = () =>
   co(function* () {
-    const students = yield inquirer.prompt([
+    const { groups } = yield getGroups();
+    const { groupId } = yield inquirer.prompt([
+      { type: 'list', name: 'groupId', message: 'Available groups:', 
+        choices: groups.map(({ name, id }) => ({ name, value: id })),
+      },
+    ]);
+    const { students } = yield getStudents();
+    const { studentIds } = yield inquirer.prompt([
       {
         type: 'checkbox',
         message: 'Select students(Press space to pick)',
-        name: 'students',
-        choices: ['bla', 'ble', 'buu'],
+        name: 'studentIds',
+        choices: students.map(({ id }) => ({ name: parseInt(id) })),
       }
     ]);
-    return { students };
+    yield addStudentsToGroup({studentIds, groupId});
   });
 
 const adminMenu = () =>
