@@ -30,9 +30,11 @@ const getGroups = () => request('getGroups');
 const getStudents = () => request('getStudents');
 const addStudentsToGroup = (data) => request('addStudentsToGroup', data);
 const getExams = () => request('getExams');
-const shareExam = (examId, groupId, duration) => request('shareExam', {examId, groupId, time: moment().add(duration, 'minutes').format()});
+const shareExam = (examId, groupId, duration) => request('shareExam', {examId, groupId, time: parseInt(moment().add(duration, 'minutes').format('X'))});
 const getOpenUserExams = () => request('getOpenUserExams');
 const getQuestions = (examId) => request('getQuestions', {examId});
+const submitAnswers = (answers, examId) => request('submitAnswers', {answers, examId});
+const getFinishedExams = () => request('getFinishedExams');
 
 module.exports = {
   sendLogIn,
@@ -46,4 +48,6 @@ module.exports = {
   shareExam,
   getOpenUserExams,
   getQuestions,
+  submitAnswers,
+  getFinishedExams,
 };

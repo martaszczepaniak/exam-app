@@ -11,6 +11,7 @@
 #include <sqlite3.h>
 #include <json/json.h>
 #include <time.h>
+#include <sys/wait.h>
 
 #define BUFFER_SIZE 1000
 #define MAXCLIENTS 20
@@ -30,6 +31,12 @@ struct Question {
 struct Exam {
 	char name[16];
 };
+
+struct Answer {
+	char answer[1];
+	int question_id;
+};
+
 
 struct User current_user;
 int childCount = 0;
@@ -102,16 +109,38 @@ static int getExamsCallback(void* NotUsed, int argc, char **argv, char **azColNa
   return 0;
 }
 
+json_object *getFinishedExamsJSONArray;
+static int getFinishedExamsCallback(void* NotUsed, int argc, char **argv, char **azColName) {
+	json_object *examJSON = json_object_new_object();
+	json_object *examId = json_object_new_string(argv[0]);
+	json_object *examName = json_object_new_string(argv[1]);
+	json_object *score = json_object_new_string(argv[2]);
+	json_object_object_add(examJSON, "id", examId);
+	json_object_object_add(examJSON, "name", examName);
+	json_object_object_add(examJSON, "score", score);
+	json_object_array_add(getFinishedExamsJSONArray, examJSON);
+  return 0;
+}
+
 json_object *getQuestionsJSONArray;
 static int getQuestionsCallback(void* NotUsed, int argc, char **argv, char **azColName) {
 	json_object *questionJSON = json_object_new_object();
 	json_object *questionId = json_object_new_string(argv[0]);
 	json_object *content = json_object_new_string(argv[1]);
-	json_object *correct_answer = json_object_new_string(argv[2]);
 	json_object_object_add(questionJSON, "id", questionId);
 	json_object_object_add(questionJSON, "content", content);
-	json_object_object_add(questionJSON, "correctAnswer", correct_answer);
 	json_object_array_add(getQuestionsJSONArray, questionJSON);
+  return 0;
+}
+
+struct Answer correct_answers[100];
+int correct_answers_count;
+static int getCorrectAnswersCallback(void* NotUsed, int argc, char **argv, char **azColName) {
+	struct Answer answer;
+	answer.question_id = atoi(argv[0]);
+	sprintf(answer.answer, "%s", argv[1]);
+	correct_answers[correct_answers_count] = answer;
+	++correct_answers_count;
   return 0;
 }
 
@@ -283,7 +312,7 @@ void mainHandler(connection) {
 			sprintf(response, "%s", json_object_to_json_string(jobj));
 		} else if(strcmp(method, "getOpenUserExams") == 0) {
 			getExamsJSONArray = json_object_new_array();
-			sprintf(query, "SELECT Exams.id, Exams.name FROM Exams INNER JOIN User_exams ON Exams.id = User_exams.exam_id WHERE User_exams.user_login = %s AND User_exams.valid_until > %d;", current_user.login, (int)time(NULL));
+			sprintf(query, "SELECT Exams.id, Exams.name FROM Exams INNER JOIN User_exams ON Exams.id = User_exams.exam_id WHERE User_exams.user_login = %s AND User_exams.valid_until > '%d' AND User_exams.score IS NULL;", current_user.login, (int)time(NULL));
 			sql = query;
 			db_connection = sqlite3_exec(db, sql, getExamsCallback, 0, &zErrMsg);
 			json_object *statusOk = json_object_new_string("ok");
@@ -309,6 +338,66 @@ void mainHandler(connection) {
 			json_object_object_add(jobj,"status", statusOk);
 			json_object_object_add(jobj,"questions", getQuestionsJSONArray);
 			sprintf(response, "%s", json_object_to_json_string(jobj));
+		} else if(strcmp(method, "submitAnswers") == 0) {
+			int examId;
+			int answersCount = 0;
+			int userExamId;
+			struct Answer answers[100];
+			int score = 0;
+
+			json_object_object_foreach(jobj, key8, val8) {
+				if(strcmp(key8, "examId") == 0) {
+					examId = json_object_get_int(val8);
+				} else if(strcmp(key8, "answers") == 0) {
+					int i;
+					for (i = 0; i < json_object_array_length(val8); i++) {
+						struct Answer answer;
+						json_object *jvalue = json_object_array_get_idx(val8, i);
+						json_object_object_foreach(jvalue, key9, val9) {
+							if (strcmp(key9, "questionId") == 0) {
+								answer.question_id = json_object_get_int(val9);
+							} else if (strcmp(key9, "answer") == 0) {
+								strncpy(answer.answer, json_object_get_string(val9), 1);
+							}
+						}
+						answers[answersCount] = answer;
+						answersCount++;
+					}
+				}
+			}
+
+			correct_answers_count = 0;
+			sprintf(query, "SELECT Questions.id, Questions.correct_answer FROM Questions WHERE exam_id = '%d';", examId);
+			sql = query;
+			db_connection = sqlite3_exec(db, sql, getCorrectAnswersCallback, 0, &zErrMsg);
+			int i = 0;
+			for(;i < answersCount; ++i) {
+				int j = 0;
+				for(;j < correct_answers_count; ++j) {
+					if(answers[i].question_id == correct_answers[j].question_id) {
+						printf("\nSCORE! answer: %s, correct_answer: %s\n", answers[i].answer, correct_answers[j].answer);
+						if(strcmp(answers[i].answer, correct_answers[j].answer) == 0) ++score;
+					}
+				} 
+			}
+			sprintf(query, "UPDATE User_exams SET score = %d WHERE User_exams.user_login = '%s' AND exam_id = '%d';", score, current_user.login, examId);
+			sql = query;
+			db_connection = sqlite3_exec(db, sql, nullCallback, 0, &zErrMsg);
+			json_object *statusOk = json_object_new_string("ok");
+			json_object * jobj = json_object_new_object();
+			json_object_object_add(jobj,"status", statusOk);
+			sprintf(response, "%s", json_object_to_json_string(jobj));
+		} else if(strcmp(method, "getFinishedExams") == 0) {
+			getFinishedExamsJSONArray = json_object_new_array();
+			sprintf(query, "SELECT Exams.id, Exams.name, User_exams.score FROM Exams INNER JOIN User_exams ON Exams.id = User_exams.exam_id WHERE User_exams.user_login = '%s' AND User_exams.score IS NOT NULL;", current_user.login);
+			sql = query;
+			db_connection = sqlite3_exec(db, sql, getFinishedExamsCallback, 0, &zErrMsg);
+			json_object *statusOk = json_object_new_string("ok");
+			json_object *jobj = json_object_new_object();
+			json_object_object_add(jobj,"status", statusOk);
+			json_object_object_add(jobj,"exams", getFinishedExamsJSONArray);
+			printf("\n%s\n", json_object_to_json_string(jobj));
+			sprintf(response, "%s", json_object_to_json_string(jobj));
 		} else if(strcmp(method, "shareExam") == 0) {
 			int exam_id;
 			int group_id;
@@ -327,7 +416,6 @@ void mainHandler(connection) {
 			sql = query;
 			db_connection = sqlite3_exec(db, sql, getGroupUsersCallback, 0, &zErrMsg);
 			int i;
-			// printf("\n%s\n", valid_until);
 			for(i = 0; i < groupUserExamsCount; ++i) {
 				sprintf(query, "INSERT INTO User_exams(exam_id, user_login, valid_until) VALUES (%d, %s, '%s'); ", exam_id, groupUserExams[i].user_login, valid_until);
 				sql = query;

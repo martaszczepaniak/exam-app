@@ -11,7 +11,6 @@ const teacherMenuPrompt = () =>
       choices: [
         { name: 'Add new exam.', value: 'addExam' },
         { name: 'Share an exam.', value: 'shareExam' },
-        { name: 'View students results.', value: 'seeResults' },
       ],
     },
   ]);
@@ -59,27 +58,36 @@ const existingExamsPrompt = () =>
   co(function* () {
     const { exams } = yield getExams();
 
-    return inquirer.prompt([
-        {
-          type: 'list', 
-          name: 'examId' , 
-          message: 'Pick an exam to share:', 
-          choices: exams.map((exam) => ({ name: exam.name, value: exam.id })),
-        }
-    ]);
+    if(exams.length) {
+      return inquirer.prompt([
+          {
+            type: 'list', 
+            name: 'examId' , 
+            message: 'Pick an exam to share:', 
+            choices: exams.map((exam) => ({ name: exam.name, value: exam.id })),
+          }
+      ]);  
+    } else {
+      console.log('There are no existing exams! Add one first.');
+      return {};
+    }
   });
 
 const shareExamsPrompt = () =>
   co(function* () {
     const { examId } = yield existingExamsPrompt();
     const { groups } = yield getGroups();
-    const { groupId, duration } = yield inquirer.prompt([
-      { type: 'list', name: 'groupId', message: 'Pick a group to share to:', 
-        choices: groups.map(({ name, id }) => ({ name, value: id })),
-      },
-      { type: 'input', name: 'duration', message: 'Exam duration in minutes:' }
-    ]);
-    yield shareExam(examId, groupId, duration);
+    if(groups.length) {
+      const { groupId, duration } = yield inquirer.prompt([
+        { type: 'list', name: 'groupId', message: 'Pick a group to share to:', 
+          choices: groups.map(({ name, id }) => ({ name, value: id })),
+        },
+        { type: 'input', name: 'duration', message: 'Exam duration in minutes:' }
+      ]);
+      yield shareExam(examId, groupId, duration);  
+    } else {
+      console.log('There are no existing groups! Ask admin to add one.')
+    }
   });
 
 const resultsPrompt = () =>
@@ -95,7 +103,6 @@ const teacherMenu = () =>
       yield {
         addExam: addExamPrompt,
         shareExam: shareExamsPrompt,
-        seeResults: resultsPrompt,
       }[choice]();
     }
   }).catch((err) => {

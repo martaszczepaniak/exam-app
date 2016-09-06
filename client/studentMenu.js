@@ -1,6 +1,6 @@
 const co = require('co');
 const inquirer = require('inquirer');
-const { getExam, getOpenUserExams, getQuestions } = require('./gateway');
+const { getExam, getOpenUserExams, getQuestions, submitAnswers, getFinishedExams } = require('./gateway');
 
 
 const studentMenuPrompt = () =>
@@ -20,7 +20,7 @@ const promptQuestion = () =>
 	inquirer.prompt([
     {
 			type: 'list', 
-			name: 'choice' , 
+			name: 'answer' , 
 			message: 'Your answer is:', 
 			choices: ['A', 'B', 'C'],
 		}
@@ -29,27 +29,35 @@ const promptQuestion = () =>
 const yourExamsPrompt = () =>
   co(function* () {
     const { exams } = yield getOpenUserExams();
-    const { examId } = yield inquirer.prompt([
-      {
-        type: 'list',
-        name: 'examId',
-        message: 'Your exams:',
-        choices: exams.map((exam) => ({ name: exam.name, value: exam.id })),
+    if(exams.length) {
+      const { examId } = yield inquirer.prompt([
+        {
+          type: 'list',
+          name: 'examId',
+          message: 'Your exams:',
+          choices: exams.map((exam) => ({ name: exam.name, value: exam.id })),
+        }
+      ]);
+      const { questions } = yield getQuestions(examId);
+      const answers = [];
+      for (let question in questions) {
+        console.log(`Question ${question}: ${questions[question].content}`);
+        const { answer } = yield promptQuestion();
+        answers.push({questionId: questions[question].id, answer: answer})
       }
-    ]);
-    const { questions } = yield getQuestions(examId);
-    const answers = {};
-    for (let question in questions) {
-      console.log(`Question ${question}: ${questions[question].content}`)
-      answers[questions[question].id] = yield promptQuestion();
+
+      yield submitAnswers(answers, examId);  
+    } else {
+      console.log('You have no exams!');
     }
-    return { answers };
   })
 	
 const seeExamResults = () =>
 	co(function* () {
-		const pickedExam = yield yourExamsPrompt();
-		return { pickedExam };
+		const { exams } = yield getFinishedExams();
+    exams.forEach((exam, index) => {
+      console.log(`\n${index + 1}: ${exam.name}, Score: ${exam.score}\n`);
+    })
 	});
 
 const studentMenu = () =>
