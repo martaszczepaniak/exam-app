@@ -13,7 +13,14 @@ const onReceiveData = (data) => {
 };
 
 let client = new net.Socket();
+
+client.on('error', function(err) {
+  console.log("Connection refused. " + err);
+});
+
 client.on('data', onReceiveData);
+
+
 
 const request = (method, payload = {}) => {
   return new Promise((resolve, reject) => {
